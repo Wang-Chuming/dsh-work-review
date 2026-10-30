@@ -4,6 +4,35 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-10-30
+
+Panel UI rebuilt: the page now lays itself out like the built-in panel pages (own header, own
+padding, single scrolling region) instead of pinning its height with JavaScript.
+
+### Changed
+
+- The panel owns a proper page frame: a 「工作回顾」 heading with a one-line subtitle (what it
+  summarizes, read-only, vault name, version), consistent inner padding, and a footer limited to
+  read-only / data-stays-local / vault / version. The content no longer starts flush against the top
+  edge of the window.
+- Navigation is a single row: underline tabs 「日报 / 周报」 plus a date or week `<select>` with `‹`
+  and `›` jumps. The separate left-hand date/week list is gone, so the two navigations can no longer
+  duplicate each other.
+- The document body now strips the YAML frontmatter and the duplicate leading H1 before rendering,
+  so a Dream file shows its title once, then the content.
+- Layout is pure flexbox (`flex: 1 1 auto` + `min-height: 0` + an inner scroll container). The old
+  `useFillHeight` / `findScrollParent` pixel-measuring code was removed, so expanding or collapsing
+  the left sidebar just reflows the page.
+- Day view keeps the Dream/journal toggle and links to the source file; week view keeps the week
+  range, status and file path as chips under the title.
+
+### Fixed
+
+- Collapsing or expanding the sidebar no longer pushes content under the panel header: the header is
+  in normal flow and the content scrolls below it, with no `position: sticky` and no hard-coded
+  heights.
+- Long week picker labels are truncated by the select instead of overflowing the toolbar.
+
 ## [0.3.0] - 2026-10-30
 
 First public release: the plugin leaves the author's local `@local/` namespace, stops assuming a
@@ -71,4 +100,5 @@ providers. To move to 0.3.0:
    hash are unchanged, so the first run after the upgrade either rewrites the generated block or
    reports "unchanged".
 
+[0.3.1]: https://github.com/Wang-Chuming/dsh-work-review/releases/tag/v0.3.1
 [0.3.0]: https://github.com/Wang-Chuming/dsh-work-review/releases/tag/v0.3.0
