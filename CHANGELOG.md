@@ -4,6 +4,35 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.2] - 2026-10-30
+
+Opt-in one-click review: the day view can now open a fresh session with a configured prompt, without
+the panel itself ever writing anything.
+
+### Added
+
+- `review` block in `~/.dsh/work-review.json`: `label`, `command`, `autoSend`, `agentPreset`. When it
+  is not configured the panel renders no button and stays purely read-only.
+- 「去审批」/ Go review button next to the document title on the day tab. Clicking it fills the
+  prompt template (`{date}`, `{week}`, `{title}`, `{path}`, `{vault}`) and opens a new session with
+  that text as an unsent draft, so you press Enter yourself. With `autoSend: true` the session is
+  created and the message sent immediately.
+- `/work-review/api/index` now returns the configured `review` object (label / command / autoSend /
+  agentPreset) so the client can render the button; nothing else on the API changed.
+- `reviewConfig()` in `lib/config.js` with tests for defaults, invalid values and file loading.
+
+### Changed
+
+- The client half reads the optional `uiWorkspace` / `sessions` services lazily and degrades to
+  clipboard copy when the running Harness build cannot create sessions.
+- The panel's main-slot injection now also passes those lazily-resolved services; the sidebar entry
+  and the read-only routes are unchanged.
+
+### Fixed
+
+- Nothing user-visible beyond the above; this release is additive and keeps the API, data layer and
+  generated-file format compatible with 0.3.1.
+
 ## [0.3.1] - 2026-10-30
 
 Panel UI rebuilt: the page now lays itself out like the built-in panel pages (own header, own
@@ -100,5 +129,6 @@ providers. To move to 0.3.0:
    hash are unchanged, so the first run after the upgrade either rewrites the generated block or
    reports "unchanged".
 
+[0.3.2]: https://github.com/Wang-Chuming/dsh-work-review/releases/tag/v0.3.2
 [0.3.1]: https://github.com/Wang-Chuming/dsh-work-review/releases/tag/v0.3.1
 [0.3.0]: https://github.com/Wang-Chuming/dsh-work-review/releases/tag/v0.3.0

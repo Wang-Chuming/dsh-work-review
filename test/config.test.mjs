@@ -198,3 +198,41 @@ test('未配置 vault 时 buildFactsPack 抛带提示的错误（而不是猜默
     assert.equal(pack.gaps.length, 7)
   })
 })
+
+test('review 配置：缺省/没有 command 视为未配置，label 默认「去审批」', () => {
+  withCleanEnv(() => {
+    assert.equal(config.reviewConfig(), null)
+    assert.equal(config.reviewConfig({}), null)
+    assert.equal(config.reviewConfig({ review: null }), null)
+    assert.equal(config.reviewConfig({ review: 'x' }), null)
+    assert.equal(config.reviewConfig({ review: [] }), null)
+    assert.equal(config.reviewConfig({ review: { label: '去审批' } }), null)
+    assert.equal(config.reviewConfig({ review: { command: '   ' } }), null)
+
+    assert.deepEqual(config.reviewConfig({ review: { command: '$sleep-review {date}' } }), {
+      label: '去审批',
+      command: '$sleep-review {date}',
+      autoSend: false,
+      agentPreset: '',
+    })
+    assert.deepEqual(
+      config.reviewConfig({
+        review: { label: '审批', command: 'x {week}', autoSend: true, agentPreset: 'preset-a' },
+      }),
+      { label: '审批', command: 'x {week}', autoSend: true, agentPreset: 'preset-a' },
+    )
+    // autoSend 只认布尔 true（字符串 "true" 不算）
+    assert.equal(config.reviewConfig({ review: { command: 'x', autoSend: 'true' } }).autoSend, false)
+  })
+})
+
+test('review 配置从 ~/.dsh/work-review.json 读取', () => {
+  withCleanEnv(({ configFile }) => {
+    writeConfig(configFile, { vaultRoot: '/v', review: { command: '$sleep-review {date}' } })
+    const review = config.reviewConfig()
+    assert.equal(review.command, '$sleep-review {date}')
+    assert.equal(review.label, '去审批')
+    assert.equal(review.autoSend, false)
+    assert.equal(review.agentPreset, '')
+  })
+})

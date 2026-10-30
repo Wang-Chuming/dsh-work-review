@@ -21,6 +21,8 @@
 | **幂等文件** | 生成块用 `<!-- sleep-routine:generated -->` 到 `<!-- sleep-routine:generated:end -->` 标出，内含 facts 哈希。哈希没变就不重写；结束标记之后是你手写的地方，永远不会被覆盖 |
 | **可选 LLM 合成** | 默认调用你本机的 Harness（`dsh --profile headless`，用你 profile 里已有的模型，不需要 API key、不需要 patch）。加 `--no-llm` 则完全不调模型，只输出会明确标注的确定性骨架 |
 | **左栏面板** | 「工作回顾」排在「自动化任务」下面：**日报** tab（当天的 Dream，缺失时回退 journal）与**周报** tab（该周周报）。只读——没有生成按钮，也没有写入按钮 |
+| **一键审批（可选）** | 在配置里写一个 `review` 命令，日报标题旁就会多一个「去审批」按钮。点击会**新建一个会话**，把该命令预填成**未发送的草稿**，由你按回车确认；`autoSend: true` 才会直接发送。不配置就完全不显示按钮 |
+| **只读 API 与 agent tool** | `/work-review/api` 下三个 `GET` 路由给面板供数；`work_review_status` tool 让 agent 从同一份数据回答「上周做了什么」 |
 | **只读 API 与 agent tool** | `/work-review/api` 下三个 `GET` 路由给面板供数；`work_review_status` tool 让 agent 从同一份数据回答「上周做了什么」 |
 
 ## 工作方式
@@ -224,6 +226,7 @@ node lib/cli.js --week 2026-W43 --force
 | `cacheDir` | `~/.cache/work-review` | 运行日志与被拒的模型输出，不写进 vault |
 | `dshCli` | 先自动探测，再回退 `dsh` | 合成时用的 `dsh` 可执行文件 |
 | `providers` | `[]` | 额外的合成后端，高级用法（见下） |
+| `review` | *（不设）* | 可选的「去审批」按钮。不配置就完全不显示按钮，面板保持纯只读（见下） |
 
 | 环境变量 | 含义 |
 | --- | --- |
@@ -259,6 +262,34 @@ node lib/cli.js --week 2026-W43 --force
 provider 的 key 先读 `keyEnv` 指定的环境变量，再读 `~/.dsh/.credentials.yaml`。配置了 `providers`
 之后，它们和 `dsh-default` 一起成为 `--provider` 的可选值。`auto` 先试配置里的 provider（显式
 意图优先），`dsh-default` 作为最后的兜底；缺 patch 或缺 key 的 provider 会跳过并打一行日志（加 `--quiet` 则不打印）。
+
+### 一键审批
+
+面板本身是只读的，所以「审批」做成可选、由配置驱动——插件不硬编码任何工作流。在同一个配置文件里加：
+
+```json
+{
+  "vaultRoot": "/path/to/your/vault",
+  "review": {
+    "label": "去审批",
+    "command": "$sleep-review {date}",
+    "autoSend": false
+  }
+}
+```
+
+| 字段 | 默认值 | 含义 |
+| --- | --- | --- |
+| `command` | *（必需）* | 提示词模板。没有非空值就整段忽略，不渲染按钮 |
+| `label` | `去审批` | 按钮文字 |
+| `autoSend` | `false` | `false`：新建会话并把模板填成**未发送草稿**（你自己按回车）；`true`：新建会话后直接发送 |
+| `agentPreset` | *（不设）* | 可选，指定新会话使用的 agent preset |
+
+模板里的占位符按你当前正在看的文档填充：`{date}`、`{week}`、`{title}`、`{path}`、`{vault}`。
+
+按钮只出现在**日报** tab 的标题旁。`autoSend: false` 时，面板只负责新开会话、把命令放进输入框，
+你不按回车它什么都不会执行；如果当前窗口不支持新建会话（较旧的 Harness），按钮会降级为把命令复制到
+剪贴板并明确提示。
 
 ## 数据层约定
 
@@ -346,7 +377,10 @@ related:
 
 - 全局面板拿不到 session 的输入框句柄：它是跨 session 的汇总面板，不是会话视图，所以
   「插入输入框」降级为把摘句复制到剪贴板，需要你自己粘贴回对话。
-- 面板按设计只读。要生成还是得跑 CLI（或让定时任务跑）。
+- 面板按设计只读。要生成还是得跑 CLI（或让定时任务跑）。可选的「去审批」按钮也只负责
+  **新开会话 + 填好草稿**，它自己不会审批、也不会写任何文件。
+- 「去审批」按钮需要当前 Harness 暴露客户端 `uiWorkspace` / `sessions` 服务；较旧的版本上
+  按钮会降级为把命令复制到剪贴板。
 - 插件依赖 Harness 内部接口：`sidebar.panellist` 与 `main` slot、布局的 `selectPanel`、
   `webServer` 服务。DSH 升级若改动这些，插件需要同步更新。
 - vault 要符合上面的 Obsidian 风格目录约定；一个扁平的笔记目录不够。

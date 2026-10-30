@@ -22,6 +22,7 @@ file — same facts, same bytes, rerun as often as you like.
 | **Idempotent file** | A generated block between `<!-- sleep-routine:generated -->` and `<!-- sleep-routine:generated:end -->` holds a facts hash. Same hash ⇒ nothing is rewritten. Anything you wrote after the end marker is never touched |
 | **Optional LLM synthesis** | By default the body is written by your own local Harness (`dsh --profile headless`, your profile's model — no API key, no patch). `--no-llm` skips the model entirely and emits a deterministic, clearly-marked skeleton |
 | **Sidebar panel** | 「工作回顾 / Work Review」 sits in the left sidebar below Automation tasks: a **day** tab (that date's Dream, falling back to the journal) and a **week** tab (the routine). Read-only — no generate button, no write button |
+| **One-click review (opt-in)** | Configure a `review` command and the day view grows a **去审批 / Go review** button. Clicking it opens a **new session** with that command pre-filled as an unsent draft, so you press Enter yourself. Set `autoSend: true` to send it immediately instead. No config ⇒ no button |
 | **Read-only API + agent tool** | Three `GET` routes under `/work-review/api` feed the panel; the `work_review_status` model tool answers “what did I do last week” from the same source |
 
 ## How it works
@@ -234,6 +235,7 @@ is resolved against the vault root.
 | `cacheDir` | `~/.cache/work-review` | Run logs and rejected model output. Never inside the vault |
 | `dshCli` | auto-detected, then `dsh` | Path of the `dsh` executable used for synthesis |
 | `providers` | `[]` | Extra synthesis backends, for advanced use (see below) |
+| `review` | *(unset)* | Opt-in「去审批」button. Unset ⇒ the button never renders and the panel stays purely read-only (see below) |
 
 | Environment variable | Meaning |
 | --- | --- |
@@ -272,6 +274,37 @@ A provider's key is read from the environment variable named by `keyEnv`, then f
 With `auto`, the configured providers are tried first — explicit intent wins — and `dsh-default`
 is the last fallback; any provider whose patch file or key is missing is skipped with a log line
 (silent with `--quiet`).
+
+### One-click review
+
+The panel stays read-only, so reviewing is opt-in and configuration-driven: the plugin never
+hard-codes a workflow. Add a `review` block to the same config file:
+
+```json
+{
+  "vaultRoot": "/path/to/your/vault",
+  "review": {
+    "label": "去审批",
+    "command": "$sleep-review {date}",
+    "autoSend": false
+  }
+}
+```
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `command` | *(required)* | Prompt template. Without a non-empty value the block is ignored and no button renders |
+| `label` | `去审批` | Button text |
+| `autoSend` | `false` | `false` opens a new session with the prompt as an **unsent draft** (you press Enter). `true` creates the session and sends it immediately |
+| `agentPreset` | *(unset)* | Optional agent preset for the new session |
+
+Placeholders are filled in from the document you are looking at: `{date}`, `{week}`, `{title}`,
+`{path}`, `{vault}`.
+
+The button appears on the **day** tab, next to the document title. With `autoSend: false` the panel
+opens a new conversation and puts the command in the composer — nothing runs until you press Enter.
+If the running window cannot create sessions (older Harness build), the button falls back to copying
+the prompt to the clipboard and tells you so.
 
 ## Data layer contract
 
@@ -366,7 +399,10 @@ a complete week and `draft` while days are still missing.
 - The panel cannot reach a session's input handle: it is a global panel, not a session view, so
   “插入输入框” degrades to copying the quote to the clipboard. Paste it into the conversation yourself.
 - The panel is read-only by design. Generating still means running the CLI (or a schedule that runs
-  it).
+  it). The opt-in review button only **opens a session and fills a draft**; it does not approve or
+  write anything by itself.
+- The review button needs a Harness build that exposes the client `uiWorkspace` / `sessions`
+  services. On an older build the button degrades to copying the prompt to the clipboard.
 - The plugin depends on Harness-internal surfaces: the `sidebar.panellist` and `main` slots, the
   layout's `selectPanel`, and the `webServer` service. A Harness upgrade that changes them needs a
   matching plugin update.
@@ -384,7 +420,7 @@ npm test        # node --test
 
 | Path | Role |
 | --- | --- |
-| `lib/config.js` | Config and vault resolution: flags, environment, `~/.dsh/work-review.json`, providers |
+| `lib/config.js` | Config and vault resolution: flags, environment, `~/.dsh/work-review.json` (incl. `review`), providers |
 | `lib/core.js` | Pure data layer: dates, parsing, aggregation, rendering, hashing |
 | `lib/prompt.js` | Facts → prompt, output contract, vocabulary and date checks |
 | `lib/cli.js` | Generation entry point: facts → provider → validation → idempotent write |

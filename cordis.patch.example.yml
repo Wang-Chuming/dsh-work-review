@@ -3,7 +3,8 @@
 # This is an EXAMPLE, not a file you have to copy. Your settings belong in
 # ~/.dsh/work-review.json (or the file named by DSH_WORK_REVIEW_CONFIG):
 #
-#   { "vaultRoot": "/path/to/your/vault" }
+#   { "vaultRoot": "/path/to/your/vault",
+#     "review": { "command": "$sleep-review {date}", "autoSend": false } }
 #
 # The packaged cordis.patch.yml ships the same row without `config:` on purpose,
 # so a plugin update never overwrites your settings.
@@ -39,3 +40,12 @@
         #     label: 'My headless patch'
         #     keyEnv: MY_HEADLESS_API_KEY
         #     patch: 'patches/custom-headless.patch.yml'
+        # Optional — the「去审批」button on the day tab. Leave it out and the panel
+        # stays purely read-only. `command` is a prompt template; without it the
+        # whole block is ignored. `autoSend: false` opens a new session with the
+        # template as an unsent draft; `autoSend: true` sends it immediately.
+        # Placeholders: {date} {week} {title} {path} {vault}.
+        # review:
+        #   label: '去审批'
+        #   command: '$sleep-review {date}'
+        #   autoSend: false
