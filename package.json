@@ -1,0 +1,78 @@
+{
+  "name": "@dsh-external/dsh-work-review",
+  "version": "0.3.0",
+  "private": true,
+  "description": "DeepSeek Harness plugin: turn a week of journal entries and Dream reports into an ISO-week routine report, and read it from a read-only Work Review panel in the Web GUI sidebar.",
+  "license": "MIT",
+  "author": "Wang-Chuming",
+  "type": "module",
+  "main": "./lib/index.js",
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "default": "./lib/client.js"
+    },
+    "./core": {
+      "default": "./lib/core.js"
+    },
+    "./config": {
+      "default": "./lib/config.js"
+    },
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "cordis.patch.example.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md",
+    "README.zh-CN.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "check": "node --check lib/config.js && node --check lib/core.js && node --check lib/prompt.js && node --check lib/cli.js && node --check lib/index.js && node --check lib/client.js && node --check test/core.test.mjs && node --check test/config.test.mjs && node --check test/index.test.mjs",
+    "test": "node --test"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "work-review",
+    "weekly-report",
+    "routine",
+    "journal",
+    "obsidian",
+    "obsidian-vault",
+    "sidebar-panel"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Wang-Chuming/dsh-work-review.git"
+  },
+  "homepage": "https://github.com/Wang-Chuming/dsh-work-review#readme",
+  "bugs": {
+    "url": "https://github.com/Wang-Chuming/dsh-work-review/issues"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-sidebar"
+      ]
+    }
+  }
+}

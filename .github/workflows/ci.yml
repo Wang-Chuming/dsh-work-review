@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: node ${{ matrix.node-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Node 22 is the support floor for the CLI and the test suite; 24 is the
+        # next line the Harness is expected to run on. The plugin itself imports
+        # nothing but Node built-ins, so there is no dependency install step and
+        # no lockfile to cache.
+        node-version: ["22", "24"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+      - name: Syntax check
+        run: npm run check
+      - name: Unit tests
+        run: npm test

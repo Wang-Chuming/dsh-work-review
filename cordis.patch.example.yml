@@ -1,0 +1,41 @@
+# Inline-config reference for dsh-work-review.
+#
+# This is an EXAMPLE, not a file you have to copy. Your settings belong in
+# ~/.dsh/work-review.json (or the file named by DSH_WORK_REVIEW_CONFIG):
+#
+#   { "vaultRoot": "/path/to/your/vault" }
+#
+# The packaged cordis.patch.yml ships the same row without `config:` on purpose,
+# so a plugin update never overwrites your settings.
+#
+# Scope of the inline form: a bundle row's `config:` reaches the HOST half only —
+# the left sidebar panel and the read-only /work-review/api routes. The CLI
+# (`node lib/cli.js`) is a separate process and resolves its vault from, in order,
+# `--vault`, `DSH_WORK_REVIEW_VAULT`, then the JSON config file; it never reads
+# this YAML. Put `vaultRoot` in the JSON file unless you specifically want the
+# panel and the CLI to point at different vaults.
+#
+# Editing a file inside node_modules is lost on the next plugin update. Copy this
+# over the installed cordis.patch.yml only for a one-off experiment, or override
+# the single row from a profile-level patch instead.
+- insert:
+    - id: dsh-work-review
+      name: '@dsh-external/dsh-work-review'
+      config:
+        # REQUIRED for the panel — absolute path of the vault (`~` allowed).
+        vaultRoot: '~/path/to/your/vault'
+        # Optional — where routine files are read from (default <vault>/life/routines).
+        # outDir: '~/path/to/your/vault/life/routines'
+        # Optional — run logs and rejected model output (default ~/.cache/work-review).
+        # cacheDir: '~/.cache/work-review'
+        # Optional — only used by a synthesis that a scheduled CLI run starts.
+        # dshCli: '/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh'
+        # Optional, advanced — extra synthesis backends on top of the built-in
+        # `dsh-default`. Keys come from the environment variable named by `keyEnv`,
+        # then ~/.dsh/.credentials.yaml; a relative `patch` is resolved against the
+        # vault root. `auto` tries them in order and skips any missing patch or key.
+        # providers:
+        #   - id: custom-headless
+        #     label: 'My headless patch'
+        #     keyEnv: MY_HEADLESS_API_KEY
+        #     patch: 'patches/custom-headless.patch.yml'

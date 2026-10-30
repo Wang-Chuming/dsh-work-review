@@ -1,0 +1,8 @@
+# @dsh-external/dsh-work-review bundle 层：插入插件行。
+# host half：webServer 只读 API 与可选 tool；client half：左侧栏「工作回顾」全局面板
+# （sidebar.panellist + main keyed slot）。包本身不带用户配置：vault 路径等请写在
+# ~/.dsh/work-review.json（见 README / cordis.patch.example.yml），升级不会覆盖。
+- insert:
+    - id: dsh-work-review
+      name: '@dsh-external/dsh-work-review'
+      config: {}
