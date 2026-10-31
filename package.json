@@ -1,8 +1,8 @@
 {
   "name": "@dsh-external/dsh-work-review",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "private": true,
-  "description": "DeepSeek Harness plugin: turn a week of journal entries and Dream reports into an ISO-week routine report, and read it from a read-only Work Review panel in the Web GUI sidebar.",
+  "description": "DeepSeek Harness plugin: turn a week of journal entries and Dream reports into an ISO-week routine report, read it from a read-only Work Review panel, and execute the auto-approved part of a Dream's T/G plan with one button.",
   "license": "MIT",
   "author": "Wang-Chuming",
   "type": "module",
@@ -39,7 +39,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "check": "node --check lib/config.js && node --check lib/core.js && node --check lib/prompt.js && node --check lib/cli.js && node --check lib/index.js && node --check lib/client.js && node --check test/core.test.mjs && node --check test/config.test.mjs && node --check test/index.test.mjs",
+    "check": "node --check lib/config.js && node --check lib/approve.js && node --check lib/core.js && node --check lib/prompt.js && node --check lib/cli.js && node --check lib/index.js && node --check lib/client.js && node --check test/core.test.mjs && node --check test/config.test.mjs && node --check test/index.test.mjs && node --check test/approve.test.mjs",
     "test": "node --test"
   },
   "keywords": [

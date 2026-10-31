@@ -4,6 +4,35 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-10-31
+
+One-click executor: the day view can now **run** the auto-approved part of a Dream's T/G plan from a
+button, without opening a chat session. The panel still never writes vault files itself — it starts a
+configured script and reports its exit status.
+
+### Added
+
+- `approve` block in `~/.dsh/work-review.json`: `label`, `python`, `script`, `args`. The script path
+  is resolved against `vaultRoot`; `{date}` / `{vault}` are substituted in `args`; the default args are
+  `["review", "{date}", "--live"]`. No `script` ⇒ no button, and the panel stays purely read-only.
+- 「执行自动审批」/ Run approval button on the day tab. It `POST`s to `/work-review/api/approve`, which
+  spawns the configured script detached (cwd = vault), then polls its state. The button shows
+  「运行中…」, then the exit code; a running job can be left alone or the panel closed.
+- `POST /work-review/api/approve` and `GET /work-review/api/approve?date=YYYY-MM-DD`. State lives in
+  `~/.cache/work-review/approve-<date>.json` + `.log`; a second click while one run is alive is a
+  no-op (`started: false`). If the host restarts mid-run the status becomes `unknown` instead of
+  pretending success.
+- `lib/approve.js` (runner, state machine, log tail) and `approveConfig()` in `lib/config.js`, both
+  covered by tests, including handler-level tests for POST body parsing.
+
+### Changed
+
+- `review` / `approve` config is now read **per request** instead of once at plugin load, so editing
+  `~/.dsh/work-review.json` takes effect on the next panel refresh (no host restart).
+- The webServer handler accepts `POST` (JSON body, ≤16 KiB) for the approve route; every other route
+  is still `GET`-only. The read-only contract for Dream/journal/routine files is unchanged: the new
+  route only *starts a process*, it never edits vault files.
+
 ## [0.3.2] - 2026-10-30
 
 Opt-in one-click review: the day view can now open a fresh session with a configured prompt, without

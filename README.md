@@ -24,6 +24,7 @@ file — same facts, same bytes, rerun as often as you like.
 | **Sidebar panel** | 「工作回顾 / Work Review」 sits in the left sidebar below Automation tasks: a **day** tab (that date's Dream, falling back to the journal) and a **week** tab (the routine). Read-only — no generate button, no write button |
 | **One-click review (opt-in)** | Configure a `review` command and the day view grows a **去审批 / Go review** button. Clicking it opens a **new session** with that command pre-filled as an unsent draft, so you press Enter yourself. Set `autoSend: true` to send it immediately instead. No config ⇒ no button |
 | **Read-only API + agent tool** | Three `GET` routes under `/work-review/api` feed the panel; the `work_review_status` model tool answers “what did I do last week” from the same source |
+| **One-click executor (opt-in)** | Configure an `approve` script and the day tab grows a **执行自动审批 / Run approval** button. It spawns that script detached (cwd = vault), shows 「运行中…」 while it runs, then the exit code. No new session, no chat context used — and it is the same entry point your scheduler uses |
 
 ## How it works
 
@@ -377,8 +378,10 @@ a complete week and `draft` while days are still missing.
 
 ## Security & privacy
 
-- **The panel and the API are read-only.** There is no generate route and no write route. Routine
-  files are written only by `lib/cli.js`, and only when you run it.
+- **The panel cannot write vault files.** Every read route is `GET`-only; the single `POST` route
+  (`/approve`) merely *spawns a script you configured* and returns its status — the plugin itself
+  never edits a note. Routine files are written only by `lib/cli.js` (or by that script).
+  Escalated/high-risk items stay with you: the default script is your own `sleep-review` entry point.
 - **Directory whitelist.** The Host half reads `life/dreams`, `life/journal`, `life/notes/ingest` and
   `life/routines`; `date` and `week` are regex-validated before being joined into a path. No request
   parameter can reach another file.

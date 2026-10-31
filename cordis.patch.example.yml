@@ -49,3 +49,13 @@
         #   label: '去审批'
         #   command: '$sleep-review {date}'
         #   autoSend: false
+        # Optional — the「执行自动审批」button on the day tab: runs a script in the
+        # vault (detached, cwd = vaultRoot) and reports its exit status. This is
+        # the same entry point your scheduler uses, not a chat session. `script`
+        # is resolved against vaultRoot when relative; `args` defaults to
+        # ["review", "{date}", "--live"]; placeholders {date} {vault} are filled.
+        # approve:
+        #   label: '执行自动审批'
+        #   python: '/usr/bin/python3'
+        #   script: 'scripts/dsh-run-task.py'
+        #   args: ['review', '{date}', '--live']
