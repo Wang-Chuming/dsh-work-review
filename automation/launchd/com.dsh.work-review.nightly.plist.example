@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  macOS launchd example: nightly Dream at 05:05 local time.
+
+  Install:
+    1. cp this file to ~/Library/LaunchAgents/com.dsh.work-review.nightly.plist
+    2. replace /ABSOLUTE/PATH/TO/dsh-work-review with your clone path
+    3. launchctl load -w ~/Library/LaunchAgents/com.dsh.work-review.nightly.plist
+
+  Why 05:05: the day boundary is 05:00, so the job runs right after it and covers the
+  whole previous day. Keep WORK_REVIEW_DAY_START_HOUR and the schedule in sync.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.dsh.work-review.nightly</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/ABSOLUTE/PATH/TO/dsh-work-review/automation/run-nightly.sh</string>
+  </array>
+
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>5</integer>
+    <key>Minute</key>
+    <integer>5</integer>
+  </dict>
+
+  <!-- dry = the review pass runs read-only and prints the plan; live = it may edit tasks
+       and make local commits. Start with dry, read a few days, then switch. -->
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>WORK_REVIEW_AUTO_REVIEW</key>
+    <string>dry</string>
+    <key>WORK_REVIEW_DAY_START_HOUR</key>
+    <string>5</string>
+    <key>DSH_WORK_REVIEW_VAULT</key>
+    <string>/ABSOLUTE/PATH/TO/YOUR/VAULT</string>
+  </dict>
+
+  <key>StandardOutPath</key>
+  <string>/ABSOLUTE/PATH/TO/HOME/Library/Logs/work-review-nightly.log</string>
+  <key>StandardErrorPath</key>
+  <string>/ABSOLUTE/PATH/TO/HOME/Library/Logs/work-review-nightly.log</string>
+
+  <key>RunAtLoad</key>
+  <false/>
+  <key>LowPriorityIO</key>
+  <true/>
+</dict>
+</plist>

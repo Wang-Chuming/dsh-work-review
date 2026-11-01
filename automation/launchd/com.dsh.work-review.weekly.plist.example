@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  macOS launchd example: weekly routine every Monday at 06:00 local time.
+
+  The `week last` argument resolves to the ISO week that just ended, so a Monday 06:00 run
+  summarises the week you actually lived through.
+
+  Install:
+    1. cp this file to ~/Library/LaunchAgents/com.dsh.work-review.weekly.plist
+    2. replace /ABSOLUTE/PATH/TO/dsh-work-review with your clone path
+    3. launchctl load -w ~/Library/LaunchAgents/com.dsh.work-review.weekly.plist
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.dsh.work-review.weekly</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/ABSOLUTE/PATH/TO/dsh-work-review/automation/run-weekly.sh</string>
+    <string>last</string>
+  </array>
+
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Weekday</key>
+    <integer>1</integer>
+    <key>Hour</key>
+    <integer>6</integer>
+    <key>Minute</key>
+    <integer>0</integer>
+  </dict>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>DSH_WORK_REVIEW_VAULT</key>
+    <string>/ABSOLUTE/PATH/TO/YOUR/VAULT</string>
+  </dict>
+
+  <key>StandardOutPath</key>
+  <string>/ABSOLUTE/PATH/TO/HOME/Library/Logs/work-review-weekly.log</string>
+  <key>StandardErrorPath</key>
+  <string>/ABSOLUTE/PATH/TO/HOME/Library/Logs/work-review-weekly.log</string>
+
+  <key>RunAtLoad</key>
+  <false/>
+</dict>
+</plist>

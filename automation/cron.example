@@ -1,0 +1,13 @@
+# Nightly. Verify the day boundary, write yesterday's Dream, and optionally run the review pass.
+#
+# Run `crontab -e` and add:
+5 5 * * * /ABSOLUTE/PATH/TO/dsh-work-review/automation/run-nightly.sh >> "$HOME/Library/Logs/work-review-nightly.log" 2>&1
+
+# Weekly. ISO week that just ended, every Monday.
+30 6 * * 1 /ABSOLUTE/PATH/TO/dsh-work-review/automation/run-weekly.sh last >> "$HOME/Library/Logs/work-review-weekly.log" 2>&1
+
+# Notes
+# - cron does not read your shell profile: put DSH_WORK_REVIEW_VAULT into `~/.dsh/work-review.json`
+#   instead of exporting it, or prefix the command with `DSH_WORK_REVIEW_VAULT=/path`.
+# - Set WORK_REVIEW_AUTO_REVIEW=dry to rehearse the review pass, `live` to let it edit and commit.
+# - cron's own PATH is minimal; `node` must be on it or referenced by absolute path.
