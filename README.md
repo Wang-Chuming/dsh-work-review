@@ -12,7 +12,10 @@ report back in a **read-only left-sidebar panel**.
 > 中文说明见 [README.zh-CN.md](README.zh-CN.md)。
 
 The vault keeps the daily record; this plugin turns seven days of it into one stable, reviewable
-file — same facts, same bytes, rerun as often as you like.
+file — same facts, same bytes, rerun as often as you like. The same package also ships the loop
+around it: a nightly pass writes the day's Dream with a numbered plan, a review pass executes only
+the items the plan marked `常规` (routine), and `automation/` has the launchd/cron examples that run
+both on a schedule.
 
 ## What it does
 
@@ -21,6 +24,9 @@ file — same facts, same bytes, rerun as often as you like.
 | **Weekly routine** | `life/dreams/<date>.md`, `life/journal/<date>.md`, `life/notes/ingest/<date>.md`, `life/tasks/` and the week's `git log` become one markdown file: `<vault>/life/routines/<YYYY>-W<ww>.md` |
 | **Idempotent file** | A generated block between `<!-- sleep-routine:generated -->` and `<!-- sleep-routine:generated:end -->` holds a facts hash. Same hash ⇒ nothing is rewritten. Anything you wrote after the end marker is never touched |
 | **Optional LLM synthesis** | By default the body is written by your own local Harness (`dsh --profile headless`, your profile's model — no API key, no patch). `--no-llm` skips the model entirely and emits a deterministic, clearly-marked skeleton |
+| **Nightly Dream** | `node lib/nightly.js` reads the day's journal, ingest digest, open tasks and git window, then writes `life/dreams/<date>.md`: a three-section brief whose plan is numbered (`T1…Tn` task updates, `G1…Gn` commits) and whose every item carries `自动批准: 常规 \| 升级`. Marker-scoped and idempotent; `--no-llm` / `--body-file` work offline |
+| **Review pass (opt-in)** | `node lib/review.js` executes only the `常规` items. Default is a printed plan; `--run` starts a read-only agent, `--live` lets it edit tasks and make local commits. The outcome is written back into `life/journal/<date>.md` as an approval block. `升级` items, and plans without an approval line, are never executed |
+| **Scheduler** | `automation/` ships one-shot wrappers plus launchd and cron examples: Dream at 05:05 (the day boundary is 05:00 → 05:00), weekly routine on Monday 06:00 |
 | **Sidebar panel** | 「工作回顾 / Work Review」 sits in the left sidebar below Automation tasks: a **day** tab (that date's Dream, falling back to the journal) and a **week** tab (the routine). Read-only — no generate button, no write button |
 | **One-click review (opt-in)** | Configure a `review` command and the day view grows a **去审批 / Go review** button. Clicking it opens a **new session** with that command pre-filled as an unsent draft, so you press Enter yourself. Set `autoSend: true` to send it immediately instead. No config ⇒ no button |
 | **Read-only API + agent tool** | Three `GET` routes under `/work-review/api` feed the panel; the `work_review_status` model tool answers “what did I do last week” from the same source |
@@ -73,6 +79,16 @@ Two halves, one package:
 - **`lib/cli.js`.** The only writer, and only when you run it. It builds the facts pack, calls a
   provider, validates the output (structure, vocabulary, dates), then rewrites the file with only
   the generated block replaced.
+- **`lib/daily.js`.** One day of facts, read-only: journal sections, ingest write-backs, open tasks,
+  the day's git window (05:00 → 05:00 by default) and what the existing Dream, if any, already says.
+- **`lib/dream.js`.** The daily counterpart of `prompt.js`: facts → Dream prompt, the output contract
+  (three sections, continuous `T`/`G` numbering, `常规`/`升级` only), structural validation, and the
+  idempotent write that keeps everything after the end marker.
+- **`lib/nightly.js`.** The nightly entry point: facts → provider → validation → `life/dreams/<date>.md`,
+  with `--dry-run`, `--no-llm`, `--body-file`, facts hashing, and an opt-in `--review` chain.
+- **`lib/review.js`.** The approval executor: reads the Dream, classifies `常规` vs `升级`, prints the
+  plan by default, runs a headless agent on request (read-only, or `workspace-write` with `--live`),
+  then writes the agent's JSON result back as an approval block.
 - **`lib/core.js`.** Pure data layer: date/week arithmetic, Dream/journal parsing, task and git
   aggregation, frontmatter and section rendering, facts hashing, hand-written-area preservation.
   No DSH imports, no network, no model.
@@ -223,6 +239,52 @@ node lib/cli.js --week 2026-W43 --force
 
 Exit codes: `0` written or already up to date, `2` bad arguments or environment, `3` the generated
 body failed validation (nothing is written), `4` every provider failed (nothing is written).
+
+## Automation
+
+The three jobs are one-shot commands, not a daemon; schedule them with `launchd` or `cron` (see
+[`automation/README.md`](automation/README.md) for the full pipeline, plists and crontab lines):
+
+```bash
+# 1. yesterday's Dream — facts from the vault, plan written for today
+node lib/nightly.js --date yesterday
+
+# 2. rehearse the review pass (prints the approved plan, executes nothing)
+node lib/review.js --date <date>
+
+# 3. execute it (read-only agent), or let it edit tasks and commit locally
+node lib/review.js --date <date> --run
+node lib/review.js --date <date> --live
+
+# 4. the week (see Usage above)
+node lib/cli.js --week last
+```
+
+`automation/` adds thin wrappers for scheduling:
+
+| Script | Does |
+| --- | --- |
+| `automation/run-nightly.sh [date]` | `nightly.js`, optionally chaining the review pass via `WORK_REVIEW_AUTO_REVIEW=off\|dry\|live` |
+| `automation/run-weekly.sh [week]` | `cli.js --week last` (or the given week) |
+| `automation/launchd/*.plist.example` | macOS: Dream at 05:05, routine on Monday 06:00 |
+| `automation/cron.example` | the same two schedules as crontab lines |
+
+Nothing changes about the safety model, and the defaults are deliberately quiet:
+
+- The nightly job **writes the Dream only** — the review chain is off unless you set
+  `WORK_REVIEW_AUTO_REVIEW`. `dry` chains a read-only run (`DSH_PERMISSION_MODE=read-only`); `live`
+  is the only setting that lets the agent touch the vault.
+- The review pass executes **only items marked `常规`**. Anything marked `升级`, missing an approval
+  line, or unnumbered is listed and left alone.
+- It never pushes: local commits are the endpoint, `git add -A` and deletions are forbidden in the
+  prompt, and governance files (`AGENTS.md`, `SCHEMA.md`, `.specs/`, `scripts/`, `.githooks/`) are
+  read-only even if a plan approved them.
+- Both writers are idempotent and marker-scoped: a file without the expected marker is an error
+  rather than a silent overwrite, and the nightly writer needs `--force` to replace a Dream it did
+  not generate.
+
+Day boundary: 05:00 → 05:00 by default (`--day-start-hour` / `WORK_REVIEW_DAY_START_HOUR`), so work
+done at 02:00 still belongs to the day you were living. If you change it, move the schedule to match.
 
 ## Configuration
 
@@ -380,16 +442,21 @@ a complete week and `draft` while days are still missing.
 
 - **The panel cannot write vault files.** Every read route is `GET`-only; the single `POST` route
   (`/approve`) merely *spawns a script you configured* and returns its status — the plugin itself
-  never edits a note. Routine files are written only by `lib/cli.js` (or by that script).
-  Escalated/high-risk items stay with you: the default script is your own `sleep-review` entry point.
+  never edits a note. Reports are written only by the CLIs you run (`lib/cli.js`, `lib/nightly.js`,
+  `lib/review.js`) or by that script. Escalated/high-risk items stay with you: the review pass skips
+  every item not marked `常规`.
 - **Directory whitelist.** The Host half reads `life/dreams`, `life/journal`, `life/notes/ingest` and
   `life/routines`; `date` and `week` are regex-validated before being joined into a path. No request
   parameter can reach another file.
 - **No network.** The plugin itself never opens a connection, has no telemetry, and uploads nothing.
   The only model call is the local `dsh` child process the CLI spawns — and only when you ask for a
   synthesis.
-- **The generator runs read-only.** The child process is started with
-  `DSH_PERMISSION_MODE=read-only`, so the model cannot write even if it tries.
+- **Generation runs read-only.** Both generators start `dsh` with `DSH_PERMISSION_MODE=read-only`,
+  so the model cannot write even if it tries; only `lib/review.js --live` raises that to
+  `workspace-write`, and only for the review agent.
+- **The review pass is scoped by the plan, not by the model.** It executes the items the Dream marked
+  `常规`; `升级` items, unnumbered plans and anything it cannot prove are left for you and recorded in
+  the approval block.
 - **Keys stay out of the vault.** Provider keys come from your environment or `~/.dsh/.credentials.yaml`;
   they are passed to the child process, never printed, never written into a report.
 - **Cache is outside the vault.** Logs and rejected model output go to `~/.cache/work-review/`.
@@ -401,9 +468,9 @@ a complete week and `draft` while days are still missing.
 
 - The panel cannot reach a session's input handle: it is a global panel, not a session view, so
   “插入输入框” degrades to copying the quote to the clipboard. Paste it into the conversation yourself.
-- The panel is read-only by design. Generating still means running the CLI (or a schedule that runs
-  it). The opt-in review button only **opens a session and fills a draft**; it does not approve or
-  write anything by itself.
+- The panel is read-only by design. Generating still means running a CLI (`lib/cli.js` for the week,
+  `lib/nightly.js` for a day) or a schedule that runs it. The opt-in review button only **opens a
+  session and fills a draft**; it does not approve or write anything by itself.
 - The review button needs a Harness build that exposes the client `uiWorkspace` / `sessions`
   services. On an older build the button degrades to copying the prompt to the clipboard.
 - The plugin depends on Harness-internal surfaces: the `sidebar.panellist` and `main` slots, the

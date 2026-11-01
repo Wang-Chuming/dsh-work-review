@@ -4,6 +4,46 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-11-01
+
+The automation half. Until now the package could write the week and read a day; the day itself and
+the execution of its plan still lived in someone else's shell scripts. This release ships both, in
+Node, with the same idempotency and read-only defaults as the rest of the package.
+
+### Added
+
+- `lib/daily.js` — one day of read-only facts: journal sections, ingest write-backs, open tasks,
+  the day's git window (05:00 → 05:00 by default) and the existing Dream's shape. Never touches the
+  model or the disk.
+- `lib/dream.js` — the daily counterpart of `prompt.js`: facts → Dream prompt, the output contract
+  (three sections in order, continuous `T`/`G` numbering, `自动批准: 常规 | 升级` only), structural
+  validation, and the idempotent renderer that replaces only the
+  `<!-- work-review:dream:generated --> … :end -->` block and preserves everything after it.
+- `lib/nightly.js` — nightly CLI: `--date`, `--day-start-hour`, `--dry-run`, `--facts-out`,
+  `--prompt-out`, `--body-file`, `--no-llm`, `--force`, `--review` / `--review-live`. Same facts-hash
+  shortcut as the weekly CLI, and it refuses to overwrite a Dream it did not generate unless
+  `--force` is passed.
+- `lib/review.js` — approval executor: reads the Dream, splits `常规` from `升级` (missing approval
+  and unnumbered plans count as escalated), prints the plan by default, runs a headless agent with
+  `--run` (`DSH_PERMISSION_MODE=read-only`) or `--live` (`workspace-write`, local commits allowed,
+  push forbidden), and writes the agent's JSON result back into `life/journal/<date>.md` as
+  `<!-- sleep-review:begin -->` bullets that the weekly facts pack already parses.
+- `automation/` — `run-nightly.sh`, `run-weekly.sh`, two launchd `.plist.example` files (Dream at
+  05:05, routine on Monday 06:00), `cron.example`, and a README with the pipeline diagram, safety
+  model and exit codes.
+- 25 new tests (75 total) covering date windows, fact collection, prompt contract, validation,
+  idempotent rendering, foreign-file protection, plan classification, agent-result parsing and
+  approval-block rendering.
+
+### Changed
+
+- `runProvider()` takes a `permissionMode` argument (default `read-only`, so existing callers are
+  unchanged); the review pass is the only caller that raises it.
+- Cache writes are best-effort and fall back to `$TMPDIR` when `~/.cache/work-review` is not
+  writable, instead of crashing the run that was about to report a validation failure.
+- The panel footer version and `package.json` now both say `0.5.0`.
+- README and README.zh-CN document the nightly → review → weekly loop and how to schedule it.
+
 ## [0.4.0] - 2026-10-31
 
 One-click executor: the day view can now **run** the auto-approved part of a Dream's T/G plan from a

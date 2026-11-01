@@ -11,7 +11,8 @@
 > English README: [README.md](README.md)
 
 日报由 vault 保存，这个插件负责把七天整理成一份稳定、可复核的文件：同样的输入就是同样的字节，
-重跑多少次结果都一样。
+重跑多少次结果都一样。同一个包还带上了围绕它的整条闭环：每晚生成当天早报（含编号计划），
+审批阶段只执行标记为 `常规` 的条目，`automation/` 里是把它俩定时跑起来的 launchd / cron 示例。
 
 ## 它做什么
 
@@ -20,11 +21,13 @@
 | **周报正文** | `life/dreams/<date>.md`、`life/journal/<date>.md`、`life/notes/ingest/<date>.md`、`life/tasks/` 以及本周的 `git log` → `<vault>/life/routines/<YYYY>-W<ww>.md` |
 | **幂等文件** | 生成块用 `<!-- sleep-routine:generated -->` 到 `<!-- sleep-routine:generated:end -->` 标出，内含 facts 哈希。哈希没变就不重写；结束标记之后是你手写的地方，永远不会被覆盖 |
 | **可选 LLM 合成** | 默认调用你本机的 Harness（`dsh --profile headless`，用你 profile 里已有的模型，不需要 API key、不需要 patch）。加 `--no-llm` 则完全不调模型，只输出会明确标注的确定性骨架 |
+| **每晚早报** | `node lib/nightly.js` 读取当天的 journal、ingest 摘要、未关闭任务与 git 窗口，写出 `life/dreams/<date>.md`：三节结构，计划带编号（`T1…Tn` 任务更新、`G1…Gn` 提交），每条都有 `自动批准: 常规 \| 升级`。带标记、幂等；`--no-llm` / `--body-file` 可离线跑 |
+| **审批执行（可选）** | `node lib/review.js` 只执行 `常规` 条目。默认只打印计划；`--run` 起只读 agent，`--live` 才允许改任务、做本地 commit。结果写回 `life/journal/<date>.md` 的审批块。升级项、以及没写自动批准的计划，一律不执行 |
+| **定时任务** | `automation/` 提供一次性脚本与 launchd / cron 示例：早报 05:05 跑（一天的边界是 05:00 → 05:00），周报周一 06:00 跑 |
 | **左栏面板** | 「工作回顾」排在「自动化任务」下面：**日报** tab（当天的 Dream，缺失时回退 journal）与**周报** tab（该周周报）。只读——没有生成按钮，也没有写入按钮 |
 | **一键审批（可选）** | 在配置里写一个 `review` 命令，日报标题旁就会多一个「去审批」按钮。点击会**新建一个会话**，把该命令预填成**未发送的草稿**，由你按回车确认；`autoSend: true` 才会直接发送。不配置就完全不显示按钮 |
 | **只读 API 与 agent tool** | `/work-review/api` 下三个 `GET` 路由给面板供数；`work_review_status` tool 让 agent 从同一份数据回答「上周做了什么」 |
 | **一键执行（可选）** | 在配置里写一个 `approve` 脚本，日报标题旁多一个「执行自动审批」按钮。点击后 host 在 vault 里**后台直接跑这个脚本**（cwd 固定为 vault），按钮显示「运行中…」，结束后显示退出码。不新开 session、不占对话上下文，跑的是和定时任务同一条入口 |
-| **只读 API 与 agent tool** | `/work-review/api` 下三个 `GET` 路由给面板供数；`work_review_status` tool 让 agent 从同一份数据回答「上周做了什么」 |
 
 ## 工作方式
 
@@ -71,6 +74,14 @@ sequenceDiagram
   `work_review_status`。它只读四个目录，`date` / `week` 先按正则校验，然后才会拼进路径。
 - **`lib/cli.js`。** 唯一的写入者，而且只在你手动运行时写。它负责 facts pack、调用 provider、
   校验输出（结构、词汇、日期），再把生成块写回已有文件。
+- **`lib/daily.js`。** 一天的只读事实：journal 各节、ingest 写回、未关闭任务、当天的 git 窗口
+  （默认 05:00 → 05:00），以及已有早报里已经写下的内容。
+- **`lib/dream.js`。** `prompt.js` 的日报版：facts → 早报 prompt、输出契约（三节、T/G 编号连续、
+  自动批准只有常规/升级）、结构校验，以及保留手写区的幂等写入。
+- **`lib/nightly.js`。** 每晚入口：facts → provider → 校验 → `life/dreams/<date>.md`，带
+  `--dry-run`、`--no-llm`、`--body-file`、facts 哈希与可选的 `--review` 链式调用。
+- **`lib/review.js`。** 审批执行器：读早报、分出常规/升级、默认只打印计划，按需起 headless agent
+  （只读；`--live` 才放宽到 workspace-write），最后把 agent 的 JSON 结果写成审批块。
 - **`lib/core.js`。** 纯数据层：日期/ISO 周换算、Dream 与 journal 解析、task 与 git 聚合、
   frontmatter 与章节渲染、facts 哈希、手写区保留。不依赖 DSH，不联网，不碰模型。
 - **`lib/prompt.js`。** facts → prompt，以及输出契约（四个固定 `##` 章节及其顺序）和 CLI 用来
@@ -215,6 +226,48 @@ node lib/cli.js --week 2026-W43 --force
 
 退出码：`0` 已写入或本来就是最新；`2` 参数或环境错误；`3` 生成的正文没通过校验（不写文件）；
 `4` 所有 provider 都失败（不写文件）。
+
+## 自动化
+
+三个 job 都是一次性命令、不是常驻进程；用 `launchd` 或 `cron` 排程（完整流程图、plist 与
+crontab 行见 [`automation/README.md`](automation/README.md)）：
+
+```bash
+# 1. 昨天的早报：从 vault 取事实，写出今天要执行的对计划
+node lib/nightly.js --date yesterday
+
+# 2. 预演审批（只打印常规项，什么都不执行）
+node lib/review.js --date <date>
+
+# 3. 真正执行（只读 agent），或允许它改任务、做本地 commit
+node lib/review.js --date <date> --run
+node lib/review.js --date <date> --live
+
+# 4. 周报（见上面「用法」）
+node lib/cli.js --week last
+```
+
+`automation/` 里是排程用的薄封装：
+
+| 脚本 | 作用 |
+| --- | --- |
+| `automation/run-nightly.sh [date]` | 跑 `nightly.js`；用 `WORK_REVIEW_AUTO_REVIEW=off\|dry\|live` 决定是否链式跑审批 |
+| `automation/run-weekly.sh [week]` | 跑 `cli.js --week last`（或指定周） |
+| `automation/launchd/*.plist.example` | macOS：早报 05:05、周报周一 06:00 |
+| `automation/cron.example` | 同样两个排程的 crontab 写法 |
+
+安全默认值没有变，而且刻意「安静」：
+
+- 每晚任务**只写早报**——不设 `WORK_REVIEW_AUTO_REVIEW` 就不链式审批。`dry` 跑一次只读
+  （`DSH_PERMISSION_MODE=read-only`）的审批；只有 `live` 才允许 agent 动 vault。
+- 审批阶段**只执行标了 `常规` 的条目**；标了 `升级`、没写自动批准、或没有编号的，只列出、不执行。
+- 永远不 push：本地 commit 就是终点，prompt 里禁止 `git add -A` 与删除；治理文件
+  （`AGENTS.md`、`SCHEMA.md`、`.specs/`、`scripts/`、`.githooks/`）即使被计划批准也按只读处理。
+- 两个写入者都幂等、都用标记划定范围：文件里没有预期标记时宁可报错也不静默覆盖；早报遇到
+  不是自己生成的文件，要显式 `--force` 才会替换。
+
+一天的边界默认 05:00 → 05:00（`--day-start-hour` / `WORK_REVIEW_DAY_START_HOUR`），凌晨干的活
+仍算前一天；改了边界记得同步改排程。
 
 ## 配置
 
@@ -367,7 +420,10 @@ related:
   `life/routines`；`date`、`week` 先过正则再拼路径，没有任何请求参数能指到别的文件。
 - **不联网。** 插件本身不建立任何连接，没有遥测，不上传任何内容。唯一的模型调用是 CLI 启动的
   本机 `dsh` 子进程，而且只在你要求合成时才启动。
-- **生成进程是只读的。** 子进程带 `DSH_PERMISSION_MODE=read-only` 启动，模型即使想写也写不了。
+- **生成阶段只读。** 子进程带 `DSH_PERMISSION_MODE=read-only` 启动，模型即使想写也写不了；
+  只有 `lib/review.js --live` 会把它放宽到 `workspace-write`，而且只作用于审批 agent。
+- **审批范围由计划决定，不由模型决定。** 只执行早报标了 `常规` 的条目；`升级` 项、无编号计划、
+  以及它证明不了的东西都留给人，并记进审批块。
 - **key 不进 vault。** provider key 来自环境变量或 `~/.dsh/.credentials.yaml`，只传给子进程，
   不打印、不写进周报。
 - **缓存在 vault 外。** 日志和被拒输出都在 `~/.cache/work-review/`。
